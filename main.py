@@ -9,11 +9,6 @@ emailVerify='на вырост'
 secondWalletVerify='на вырост'
 
 
-#def smsVerify():
-
-
-
-
 
 def verificationSystem(): # функция удостоверения
     if check == 'suspicious':
@@ -58,3 +53,4 @@ def case2():
         verificationSystem()
     else:
         print('📥 Средства зачислены от известного адреса.')
+

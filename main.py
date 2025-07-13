@@ -1,64 +1,84 @@
-import os, time
+import os, asyncio
+from dictionary import AdressBook
+from bot import request_confirmation, start_bot
+
 clear = lambda: os.system('cls' if os.name == 'nt' else 'clear') # Функция для очистки экрана
 
-from dictionary import AdressBook
-
-check='на вырост'
-smsVerify=None # сделать функцию, найти библиотеку с SMS и способ отправлять их
-emailVerify=None # сделать функцию, найти библиотеку и способ отправлять их
-secondWalletVerify=None # сделать функцию, найти библиотеку и способ отправлять их
+check = 'на вырост'
+smsVerify = None
+emailVerify = None
+secondWalletVerify = None
 
 
 
-def verif(): # функция удостоверения
+# ✅ Асинхронная функция Telegram-подтверждения
+async def tgVerify():
+    print("Отправка запроса в Telegram...")
+    try:
+        approved = await request_confirmation()
+        return approved
+    except Exception as e:
+        print(f"Ошибка при подтверждении через Telegram: {e}")
+        return False
+
+
+
+def askSeed():
+    seed = ''
+    while seed != 'word word word':
+        seed = ' '.join(input('Введите сид-фразу для входа в кошелек: ').split())
+        if seed != 'word word word':
+            print('Неверная сид-фраза. Повторите попытку.\n')
+    return seed
+
+
+
+
+def choice():
+    choiceVar = input("""Выберите действие:
+      1. Вывод средств
+      2. Получение средств
+      Ваш выбор: """)
+
+    while choiceVar not in ["1", "2"]:
+        print("Неверный ввод, попробуйте снова.\n")
+        return choice()
+    
+    return int(choiceVar)
+
+
+
+
+# Проверка подозрительности и вызов tgVerify
+async def verif():
     global check
     if check == 'suspicious':
-        
-        # отправляем запрос по СМС, почте или в интерфейс второго кошелька
+        approved = await tgVerify()
 
-        # доработать взаимодействие со всеми тремя, сейчас стоит заглушка True
-        if smsVerify==True or emailVerify==True or secondWalletVerify==True: # если владелец подтвердил
-            check='verified'
-        
-           
+        if approved:
+            check = 'verified'
+            print("✅ Доступ подтверждён.")
+        else:
+            print("❌ Доступ отклонён.")
+            exit(1)
+
     elif check == 'verified':
-        print('')
+        print("✔️ Уже подтверждено.")
 
+# 👇 Основной запуск
+async def main():
+    bot_task = asyncio.create_task(start_bot())  # фоновый запуск бота
+    await asyncio.sleep(1)  # пауза на запуск polling
 
+    askSeed()
+    await verif()
+    user_choice = choice()
+    print(f"Вы выбрали: {user_choice}")
 
-def askSeed():  # Функция запроса сид-фразы
-    return ' '.join(input('Введите сид-фразу для входа в кошелек: ').split())
+    bot_task.cancel()
 
-seed = askSeed()  # Функция проверки верности сид-фразы (не путать с предыдущей)
-while seed != 'word word word':
-    print('Неверная сид-фраза. Повторите попытку')
-    seed = askSeed()
-
-
-
-def caseSend(): # Кейс вывода
-    sendTo = input('Введите адрес для вывода средств: ')
-    if sendTo not in AdressBook:
-        print('Этого адреса нет в вашей адресной книге. Пройдите проверку.')
-        verif()
-    else:
-        print('✅ Вывод произведён успешно.')
-
-
-def caseReceive(): # Кейс получения
-    receiveFrom = input('Введите адрес, с которого получены средства: ')
-    if receiveFrom not in AdressBook:
-        print('Подозрительное поступление средств. Пройдите проверку.')
-        verif()
-    else:
-        print('📥 Средства зачислены от известного адреса.')
-
-
-def choice(): 
-    input("""Выберите действие:
-               1. Вывод средств
-               2. Получение средств
-    """)
-    #while input not in [1,2]:
-
-    # доделать
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\nЗавершено пользователем.")

@@ -1,16 +1,12 @@
-import os
-import asyncio
-from dictionary import AdressBook
-from bot import request_confirmation, start_bot, bot  # импортируем бота
+import os, asyncio
+from dictionary import AdressBook, save_addressbook
+from bot import request_confirmation, start_bot, bot
 
 clear = lambda: os.system('cls' if os.name == 'nt' else 'clear')
 
 check = 'на вырост'
-smsVerify = None
-emailVerify = None
-secondWalletVerify = None
 
-# ✅ Telegram-подтверждение
+
 async def tgVerify():
     print("Отправка запроса в Telegram...")
     try:
@@ -20,25 +16,28 @@ async def tgVerify():
         print(f"Ошибка при подтверждении через Telegram: {e}")
         return False
 
-# 🔐 Проверка и изменение статуса
-async def verif():
+
+async def verif(address: str):
     global check
 
-    if check in ["verified", "denied"]:
-        print(f"⚠️ Проверка уже пройдена ранее: {check}")
+    if address in AdressBook:
+        print("✅ Адрес найден в адресной книге. Подтверждение не требуется.")
+        check = 'verified'
         return
 
-    print("📡 Запрос подтверждения...")
+    print("⚠️ Новый адрес. Требуется подтверждение.")
     approved = await tgVerify()
 
     if approved:
         check = 'verified'
-        print("✅ Доступ подтверждён.")
+        AdressBook[address] = {"confirmed": True}
+        save_addressbook()
+        print("✅ Подтверждено. Адрес добавлен в адресную книгу.")
     else:
         check = 'denied'
-        print("❌ Доступ отклонён.")
+        print("❌ Операция отклонена.")
 
-# 🔑 Ввод сид-фразы
+
 def askSeed():
     seed = ''
     while seed != 'word word word':
@@ -47,7 +46,7 @@ def askSeed():
             print('Неверная сид-фраза. Повторите попытку.\n')
     return seed
 
-# 💸 Выбор действия
+
 def choice():
     choiceVar = input("""Выберите действие:
       1. Вывод средств
@@ -57,44 +56,42 @@ def choice():
     while choiceVar not in ["1", "2"]:
         print("Неверный ввод, попробуйте снова.\n")
         return choice()
-    
+
     return int(choiceVar)
 
-# 🧾 Ввод адреса
+
 def inputAddress():
     address = input("Введите адрес кошелька: ").strip()
-    # Здесь можно вставить анализ адреса через AdressBook
     print(f"Адрес получен: {address}")
     return address
 
-# 🚀 Основной запуск
+
 async def main():
     global check
 
     bot_task = asyncio.create_task(start_bot())
     await asyncio.sleep(1)
 
-    askSeed()
-    user_choice = choice()
-    address = inputAddress()
+    try:
+        askSeed()
+        user_choice = choice()
+        address = inputAddress()
 
-    # Принудительно делаем check подозрительным (в будущем — анализ из AdressBook)
-    check = 'suspicious'
+        await verif(address)
 
-    await verif()
+        if check != 'verified':
+            print("🚫 Операция отклонена. Без подтверждения нельзя продолжить.")
+            return
 
-    if check != 'verified':
-        print("🚫 Операция отклонена. Без подтверждения нельзя продолжить.")
-        await bot.session.close()
-        return
+        print(f"✅ Операция разрешена. Выбранное действие: {user_choice}, адрес: {address}")
 
-    print(f"✅ Операция разрешена. Выбранное действие: {user_choice}, адрес: {address}")
-
-    bot_task.cancel()
-    await bot.session.close()
+    finally:
+        bot_task.cancel()
+        await bot.session.close()  # корректное закрытие Telegram-сессии
 
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("\nЗавершено пользователем.")
+
